@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# set -uex
+set -ue
+
+if [ $# -ne 2 ]; then
+	echo "Usage: $0 SRC_TXT_FILE DST_2BPP_FILE" 1>&2
+	exit 1
+fi
+
+SRC_TXT_FILE=$1
+DST_2BPP_FILE=$2
+
+txt22bpp() {
+	local txt=$1
+	local out=$2
+
+	local msb=''
+	local lsb=''
+	for i in $(seq 64); do
+		local ch=$(cut -c${i} ${txt})
+		case $ch in
+		'#')
+			msb="${msb}1"
+			lsb="${lsb}1"
+			;;
+		'*')
+			msb="${msb}1"
+			lsb="${lsb}0"
+			;;
+		'.')
+			msb="${msb}0"
+			lsb="${lsb}1"
+			;;
+		' ')
+			msb="${msb}0"
+			lsb="${lsb}0"
+			;;
+		esac
+		if [ $((i % 8)) -eq 0 ]; then
+			local msb_hex=$(echo "obase=16;ibase=2;${msb}" | bc)
+			local lsb_hex=$(echo "obase=16;ibase=2;${lsb}" | bc)
+			echo -en "\x${lsb_hex}\x${msb_hex}" >>${out}
+			msb=''
+			lsb=''
+		fi
+	done
+}
+
+tr -d '\n' <$SRC_TXT_FILE >${SRC_TXT_FILE}.tmp
+trap "rm ${SRC_TXT_FILE}.tmp" EXIT
+
+echo -n >$DST_2BPP_FILE
+txt22bpp ${SRC_TXT_FILE}.tmp $DST_2BPP_FILE
