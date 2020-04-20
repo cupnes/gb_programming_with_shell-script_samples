@@ -16,6 +16,22 @@ VRAM_BG_TILE_MAP_END=9bff
 
 BGP_VAL=e4
 
+manual_scroll() {
+	# ジョイパッド入力取得(十字キー)
+	## 十字キーの入力を取得するように設定
+	lr35902_copy_to_regA_from_ioport $GB_IO_JOYP
+	lr35902_set_bitN_of_reg 5 regA
+	lr35902_res_bitN_of_reg 4 regA
+	lr35902_copy_to_ioport_from_regA $GB_IO_JOYP
+	## 入力取得(ノイズ除去のため2回読む)
+	lr35902_copy_to_regA_from_ioport $GB_IO_JOYP
+	lr35902_copy_to_regA_from_ioport $GB_IO_JOYP
+	## ビット反転(押下中のキーのビットが1になる)
+	lr35902_complement_regA
+	## レジスタBへ格納
+	lr35902_copy_to_from regB regA
+}
+
 main() {
 	# 自由に使える領域の先頭(0x0150)にタイルデータを追加する
 	cat tile.2bpp
@@ -90,8 +106,19 @@ main() {
 	lr35902_set_bitN_of_reg 0 regA
 	lr35902_copy_to_ioport_from_regA $GB_IO_IE
 
-	# 無限halt
-	infinite_halt
+	# 割り込み有効化
+	lr35902_enable_interrupts
+
+	(
+		# 割り込みがあるまでhalt
+		lr35902_halt
+
+		# 手動画面スクロール
+		manual_scroll
+	) >main.4.o
+	cat main.4.o
+	local sz_4=$(stat -c '%s' main.4.o)
+	lr35902_rel_jump $(two_comp_d $((sz_4+2)))
 }
 
 # 割り込みベクタ生成

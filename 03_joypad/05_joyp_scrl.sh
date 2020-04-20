@@ -16,6 +16,87 @@ VRAM_BG_TILE_MAP_END=9bff
 
 BGP_VAL=e4
 
+manual_scroll() {
+	# ジョイパッド入力取得(十字キー)
+	## 十字キーの入力を取得するように設定
+	lr35902_copy_to_regA_from_ioport $GB_IO_JOYP
+	lr35902_set_bitN_of_reg 5 regA
+	lr35902_res_bitN_of_reg 4 regA
+	lr35902_copy_to_ioport_from_regA $GB_IO_JOYP
+	## 入力取得(ノイズ除去のため2回読む)
+	lr35902_copy_to_regA_from_ioport $GB_IO_JOYP
+	lr35902_copy_to_regA_from_ioport $GB_IO_JOYP
+	## ビット反転(押下中のキーのビットが1になる)
+	lr35902_complement_regA
+	## レジスタBへ格納
+	lr35902_copy_to_from regB regA
+
+	# 十字キー押下状態に応じてスクロールレジスタ更新
+	## 下キーチェック
+	lr35902_test_bitN_of_reg 3 regB
+	(
+		# 下キーが押下中の場合
+
+		# SCYをインクリメント
+		lr35902_copy_to_regA_from_ioport $GB_IO_SCY
+		lr35902_inc regA
+		lr35902_copy_to_ioport_from_regA $GB_IO_SCY
+	) >manual_scroll.1.o
+	local sz_1=$(stat -c '%s' manual_scroll.1.o)
+	## 下キーが押下中でない場合、押下中の処理を飛ばす
+	lr35902_rel_jump_with_cond Z $(two_digits_d $sz_1)
+	## 押下中の処理
+	cat manual_scroll.1.o
+
+	## 上キーチェック
+	lr35902_test_bitN_of_reg 2 regB
+	(
+		# 上キーが押下中の場合
+
+		# SCYをデクリメント
+		lr35902_copy_to_regA_from_ioport $GB_IO_SCY
+		lr35902_dec regA
+		lr35902_copy_to_ioport_from_regA $GB_IO_SCY
+	) >manual_scroll.2.o
+	local sz_2=$(stat -c '%s' manual_scroll.2.o)
+	## 上キーが押下中でない場合、押下中の処理を飛ばす
+	lr35902_rel_jump_with_cond Z $(two_digits_d $sz_2)
+	## 押下中の処理
+	cat manual_scroll.2.o
+
+	## 左キーチェック
+	lr35902_test_bitN_of_reg 1 regB
+	(
+		# 左キーが押下中の場合
+
+		# SCXをデクリメント
+		lr35902_copy_to_regA_from_ioport $GB_IO_SCX
+		lr35902_dec regA
+		lr35902_copy_to_ioport_from_regA $GB_IO_SCX
+	) >manual_scroll.3.o
+	local sz_3=$(stat -c '%s' manual_scroll.3.o)
+	## 左キーが押下中でない場合、押下中の処理を飛ばす
+	lr35902_rel_jump_with_cond Z $(two_digits_d $sz_3)
+	## 押下中の処理
+	cat manual_scroll.3.o
+
+	## 右キーチェック
+	lr35902_test_bitN_of_reg 0 regB
+	(
+		# 右キーが押下中の場合
+
+		# SCXをインクリメント
+		lr35902_copy_to_regA_from_ioport $GB_IO_SCX
+		lr35902_inc regA
+		lr35902_copy_to_ioport_from_regA $GB_IO_SCX
+	) >manual_scroll.4.o
+	local sz_4=$(stat -c '%s' manual_scroll.4.o)
+	## 右キーが押下中でない場合、押下中の処理を飛ばす
+	lr35902_rel_jump_with_cond Z $(two_digits_d $sz_4)
+	## 押下中の処理
+	cat manual_scroll.4.o
+}
+
 main() {
 	# 自由に使える領域の先頭(0x0150)にタイルデータを追加する
 	cat tile.2bpp
@@ -90,8 +171,19 @@ main() {
 	lr35902_set_bitN_of_reg 0 regA
 	lr35902_copy_to_ioport_from_regA $GB_IO_IE
 
-	# 無限halt
-	infinite_halt
+	# 割り込み有効化
+	lr35902_enable_interrupts
+
+	(
+		# 割り込みがあるまでhalt
+		lr35902_halt
+
+		# 手動画面スクロール
+		manual_scroll
+	) >main.4.o
+	cat main.4.o
+	local sz_4=$(stat -c '%s' main.4.o)
+	lr35902_rel_jump $(two_comp_d $((sz_4+2)))
 }
 
 # 割り込みベクタ生成
