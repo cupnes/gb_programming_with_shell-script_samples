@@ -56,7 +56,7 @@ main() {
 			lr35902_clear_reg regA
 			lr35902_copyinc_to_ptrHL_from_regA
 
-			# レジスタHは最終アドレスの上位8ビット(0x9b)と等しいか？
+			# レジスタHと最終アドレス上位8ビットを比較
 			lr35902_copy_to_from regA regH
 			lr35902_compare_regA_and $end_th
 		) >main.2.o
@@ -66,7 +66,7 @@ main() {
 		# main.2.oのサイズ(+相対ジャンプ命令のサイズ)分戻る
 		lr35902_rel_jump_with_cond NZ $(two_comp_d $((sz_2+2)))
 
-		# レジスタLは最終アドレスの下位8ビット(0xff)と等しいか？
+		# レジスタLと最終アドレス下位8ビットを比較
 		lr35902_copy_to_from regA regL
 		lr35902_compare_regA_and $end_bh
 	) >main.3.o
